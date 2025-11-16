@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PTTC模型 - 交互式可视化</title>
+    <!-- 引入Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Lucide图标库 -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <style>
+        /* 自定义字体和背景 */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            background-color: #0a0a1a; /* 深邃的科技蓝黑色背景 */
+            color: #e0e0e0;
+            overflow-x: hidden;
+        }
+
+        /* 粒子背景画布 */
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.5;
+        }
+
+        /* 内容容器，确保在画布之上 */
+        .content-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 玻璃拟态效果 */
+        .glass-card {
+            background: rgba(17, 24, 39, 0.6); /* 半透明暗色背景 */
+            backdrop-filter: blur(12px) saturate(150%);
+            -webkit-backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 1rem; /* 圆角 */
+            transition: all 0.3s ease;
+        }
+
+        /* 科技感辉光边框 */
+        .glow-border {
+            box-shadow: 0 0 15px rgba(0, 200, 255, 0.3), 0 0 5px rgba(0, 200, 255, 0.2) inset;
+        }
+        
+        /* 流程步骤卡片 */
+        .step-card {
+            border: 1px solid rgba(0, 200, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .step-card:hover {
+            transform: translateY(-5px) scale(1.03);
+            box-shadow: 0 0 25px rgba(0, 200, 255, 0.5);
+        }
+
+        .step-card.active {
+            border-color: rgba(0, 220, 255, 0.8);
+            box-shadow: 0 0 30px rgba(0, 220, 255, 0.6);
+            transform: translateY(-5px) scale(1.05);
+            background: rgba(0, 150, 190, 0.1);
+        }
+
+        /* 权衡矩阵单元格 */
+        .matrix-cell {
+            position: relative;
+            transition: background-color 0.3s ease;
+            min-height: 50px; /* 保证单元格高度 */
+        }
+        
+        .matrix-cell[data-tooltip]:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #00d2ff;
+            color: #0a0a1a;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            white-space: nowrap;
+            z-index: 10;
+        }
+        
+        .matrix-cell[data-tooltip]:hover::before {
+            content: '';
+            position: absolute;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%) translateY(100%);
+            border-width: 6px;
+            border-style: solid;
+            border-color: #00d2ff transparent transparent transparent;
+            z-index: 10;
+        }
+
+        /* 排序图表 */
+        .ranking-bar-container {
+            transition: background-color 0.3s ease;
+        }
+        
+        .ranking-bar-container:hover {
+             background-color: rgba(0, 200, 255, 0.1);
+        }
+        
+        .ranking-bar {
+            height: 100%;
+            border-radius: 0.25rem;
+            background: linear-gradient(90deg, #007cf0, #00d2ff);
+            box-shadow: 0 0 15px rgba(0, 200, 255, 0.5);
+            transition: width 1.5s cubic-bezier(0.23, 1, 0.32, 1); /* 平滑的动画效果 */
+            width: 0%; /* 初始宽度为0 */
+        }
+        
+        /* 隐藏滚动条 */
+        ::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 粒子背景 -->
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- 页面内容 -->
+    <div class="content-wrapper container mx-auto p-4 md:p-8">
+        
+        <!-- 1. 标题 -->
+        <header class="text-center my-8 md:my-12">
+            <h1 class="text-3xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 mb-4">
+                增强型前景理论模型 (PTTC)
+            </h1>
+            <p class="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto">
+                融合语义插值与消费者权衡挖掘的交互式产品排序可视化
+            </p>
+        </header>
+
+        <!-- 2. 交互式流程可视化 -->
+        <section class="mb-16">
+            <h2 class="text-2xl md:text-3xl font-semibold text-center mb-10 text-cyan-300">
+                <i data-lucide="network" class="inline-block mr-2 -mt-1"></i>
+                项目流程可视化
+            </h2>
+            
+            <!-- 步骤条 -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 mb-8">
+                <!-- 步骤1到5 -->
+                <div id="step-1" class="step-card glass-card p-4 text-center" onclick="showStep(1)">
+                    <i data-lucide="database-zap" class="h-10 w-10 mx-auto text-cyan-400 mb-3"></i>
+                    <h3 class="font-semibold text-white">模块 1</h3>
+                    <p class="text-sm text-gray-300">数据采集与预处理</p>
+                </div>
+                <div id="step-2" class="step-card glass-card p-4 text-center" onclick="showStep(2)">
+                    <i data-lucide="binary" class="h-10 w-10 mx-auto text-cyan-400 mb-3"></i>
+                    <h3 class="font-semibold text-white">模块 2</h3>
+                    <p class="text-sm text-gray-300">结构化三元组提取</p>
+                </div>
+                <div id="step-3" class="step-card glass-card p-4 text-center" onclick="showStep(3)">
+                    <i data-lucide="sliders-horizontal" class="h-10 w-10 mx-auto text-cyan-400 mb-3"></i>
+                    <h3 class="font-semibold text-white">模块 3</h3>
+                    <p class="text-sm text-gray-300">细粒度情感量化</p>
+                </div>
+                <div id="step-4" class="step-card glass-card p-4 text-center" onclick="showStep(4)">
+                    <i data-lucide="git-compare" class="h-10 w-10 mx-auto text-cyan-400 mb-3"></i>
+                    <h3 class="font-semibold text-white">模块 4</h3>
+                    <p class="text-sm text-gray-300">权衡关系挖掘</p>
+                </div>
+                <div id="step-5" class="step-card glass-card p-4 text-center" onclick="showStep(5)">
+                    <i data-lucide="brain-circuit" class="h-10 w-10 mx-auto text-cyan-400 mb-3"></i>
+                    <h3 class="font-semibold text-white">模块 5</h3>
+                    <p class="text-sm text-gray-300">PTTC决策与排序</p>
+                </div>
+            </div>
+
+            <!-- 步骤详情显示区域 -->
+            <div id="display-panel" class="glass-card glow-border p-6 md:p-8 min-h-[250px] flex items-center">
+                <div id="display-content" class="transition-opacity duration-500">
+                    <h3 id="display-title" class="text-2xl font-bold text-cyan-300 mb-4"></h3>
+                    <p id="display-text" class="text-gray-200 leading-relaxed"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. 案例研究：交互式数据 -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12">
+            
+            <!-- 权衡矩阵 -->
+            <div class="glass-card p-6 md:p-8">
+                <h2 class="text-2xl md:text-3xl font-semibold text-center mb-8 text-cyan-300">
+                    <i data-lucide="table-properties" class="inline-block mr-2 -mt-1"></i>
+                    权衡补偿矩阵 (模拟)
+                </h2>
+                <p class="text-center text-gray-400 text-sm mb-6">
+                    悬停查看属性间的权衡关系。 (行: 被补偿属性, 列: 补偿属性)
+                </p>
+                
+                <div class="overflow-x-auto">
+                    <div class="grid gap-px bg-gray-700" style="grid-template-columns: 1fr repeat(6, 2fr); min-width: 600px;">
+                        <!-- 表头 -->
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs sticky left-0 z-10">属性</div>
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs text-center">外观</div>
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs text-center">内饰</div>
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs text-center">空间</div>
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs text-center">性能</div>
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs text-center">智能</div>
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs text-center">续航</div>
+                        
+                        <!-- 矩阵行 -->
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs sticky left-0 z-10">外观</div>
+                        <div class="matrix-cell bg-gray-900"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.1);" data-tooltip="外观(被) vs 内饰(补): 25次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.2);" data-tooltip="外观(被) vs 空间(补): 40次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.3);" data-tooltip="外观(被) vs 性能(补): 60次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.1);" data-tooltip="外观(被) vs 智能(补): 20次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.2);" data-tooltip="外观(被) vs 续航(补): 35次"></div>
+
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs sticky left-0 z-10">内饰</div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.6);" data-tooltip="内饰(被) vs 外观(补): 130次"></div>
+                        <div class="matrix-cell bg-gray-900"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.4);" data-tooltip="内饰(被) vs 空间(补): 80次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.3);" data-tooltip="内饰(被) vs 性能(补): 55次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.5);" data-tooltip="内饰(被) vs 智能(补): 110次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.1);" data-tooltip="内饰(被) vs 续航(补): 15次"></div>
+
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs sticky left-0 z-10">空间</div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.8);" data-tooltip="空间(被) vs 外观(补): 180次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.3);" data-tooltip="空间(被) vs 内饰(补): 65次"></div>
+                        <div class="matrix-cell bg-gray-900"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.4);" data-tooltip="空间(被) vs 性能(补): 90次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.5);" data-tooltip="空间(被) vs 智能(补): 100次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.2);" data-tooltip="空间(被) vs 续航(补): 30次"></div>
+
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs sticky left-0 z-10">性能</div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.3);" data-tooltip="性能(被) vs 外观(补): 50次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.2);" data-tooltip="性能(被) vs 内饰(补): 45次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.1);" data-tooltip="性能(被) vs 空间(补): 25次"></div>
+                        <div class="matrix-cell bg-gray-900"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.2);" data-tooltip="性能(被) vs 智能(补): 40次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.4);" data-tooltip="性能(被) vs 续航(补): 85次"></div>
+
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs sticky left-0 z-10">智能</div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.5);" data-tooltip="智能(被) vs 外观(补): 100次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.2);" data-tooltip="智能(被) vs 内饰(补): 40次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.4);" data-tooltip="智能(被) vs 空间(补): 80次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.2);" data-tooltip="智能(被) vs 性能(补): 35次"></div>
+                        <div class="matrix-cell bg-gray-900"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.1);" data-tooltip="智能(被) vs 续航(补): 20次"></div>
+
+                        <div class="p-2 bg-gray-800 text-white font-bold text-xs sticky left-0 z-10">续航</div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 1.0);" data-tooltip="续航(被) vs 外观(补): 220次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.7);" data-tooltip="续航(被) vs 内饰(补): 150次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.6);" data-tooltip="续航(被) vs 空间(补): 130次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.8);" data-tooltip="续航(被) vs 性能(补): 170次"></div>
+                        <div class="matrix-cell bg-gray-900" style="background-color: rgba(0, 210, 255, 0.9);" data-tooltip="续航(被) vs 智能(补): 200次"></div>
+                        <div class="matrix-cell bg-gray-900"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 最终排名 -->
+            <div class="glass-card p-6 md:p-8">
+                <h2 class="text-2xl md:text-3xl font-semibold text-center mb-8 text-cyan-300">
+                    <i data-lucide="bar-chart-3" class="inline-block mr-2 -mt-1"></i>
+                    最终产品排序 (PTTC)
+                </h2>
+                <p class="text-center text-gray-400 text-sm mb-6">
+                    基于论文 Table 10 的 PTTC 排名结果。
+                </p>
+                <div id="ranking-chart" class="space-y-3">
+                    <!-- 排名数据将由JS动态加载 -->
+                </div>
+            </div>
+
+        </section>
+
+    </div>
+
+    <script>
+        // ---------------------------------
+        // 1. 粒子背景动画
+        // ---------------------------------
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // 重新初始化粒子以适应新画布大小
+            initParticles();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = (Math.random() - 0.5) * 0.5; // 减慢速度
+                this.vy = (Math.random() - 0.5) * 0.5; // 减慢速度
+                this.radius = Math.random() * 1.5 + 0.5;
+                this.color = 'rgba(0, 210, 255, 0.8)';
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            let particleCount = Math.floor(canvas.width * canvas.height / 15000); // 响应式粒子数量
+            if (particleCount < 50) particleCount = 50; // 保证最少粒子数
+            if (particleCount > 200) particleCount = 200; // 保证最多粒子数
+            for (let i = 0; i < particleCount; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function connectParticles() {
+            let maxDist = 120; // 连接距离
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    let dist = Math.hypot(particles[i].x - particles[j].x, particles[i].y - particles[j].y);
+                    if (dist < maxDist) {
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = `rgba(0, 210, 255, ${0.5 - dist / maxDist})`; // 减弱连接线
+                        ctx.lineWidth = 0.3;
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            connectParticles();
+            requestAnimationFrame(animate);
+        }
+
+        // 立即调整一次并开始动画
+        resizeCanvas();
+        animate();
+
+        // ---------------------------------
+        // 2. 交互式流程步骤
+        // ---------------------------------
+        const stepData = {
+            1: {
+                title: "模块 1: 数据采集与预处理",
+                text: "使用爬虫技术从 Autohome, Dongchedi, Yiche 等平台收集B级轿车的大规模原始文本评论。随后，对语料库进行数据清洗，包括去重、去除空值，并使用LTP工具进行分句，最终形成分析所需的基础数据集。"
+            },
+            2: {
+                title: "模块 2: 结构化情感三元组提取",
+                text: "使用经过QLoRA技术微调的大语言模型（Qwen-14B-1M-Instruct）处理文本数据。此模块旨在从非结构化的评论中，自动识别并提取细粒度的情感信息，生成 {属性, 观点, 极性} 结构的情感三元组。例如：{外观, 漂亮, 积极}。"
+            },
+            3: {
+                title: "模块 3: 细粒度情感量化 (SINet)",
+                text: "为解决离S散极性（如“积极”）无法区分情感强度（如“不错” vs “惊艳”）的问题，本模块应用语义插值网络 (SINet)。SINet 基于词向量空间和K近邻插值算法，将离散的观点词（如“漂亮”）转换为连续的情感分数，实现更精确的量化。"
+            },
+            4: {
+                title: "模块 4: 权衡比较关系挖掘",
+                text: "模拟消费者的真实决策心理。此模块通过特定算法挖掘评论中的“权衡句”（例如：“虽然续航不行，但外观很赞”）。通过统计“被补偿属性”（续航）和“补偿属性”（外观），构建权衡矩阵，并计算标准化的补偿能力(NCP)和被补偿脆弱性(NCV)。"
+            },
+            5: {
+                title: "模块 5: PTTC决策与排序",
+                text: "最终的决策模块。该模块将模块3的情感分数和模块4的权衡向量（NCP/NCV）整合到增强型前景理论（PTTC）框架中。通过对比市场平均表现（参考点）来定义“收益”和“损失”，并使用权衡数据动态调整价值函数和概率权重，最终计算出每个产品的综合前景价值 (PV) 并生成排名。"
+            }
+        };
+
+        const displayPanel = document.getElementById('display-content');
+        const displayTitle = document.getElementById('display-title');
+        const displayText = document.getElementById('display-text');
+        const stepCards = document.querySelectorAll('.step-card');
+
+        // 此函数由 onclick 调用，因此它在全局作用域中
+        function showStep(stepIndex) {
+            // 确保 stepData 存在
+            if (typeof stepData === 'undefined' || !stepData[stepIndex]) {
+                console.error('stepData 未定义或索引无效');
+                return;
+            }
+            const data = stepData[stepIndex];
+            
+            // 淡出效果
+            displayPanel.style.opacity = 0;
+            
+            setTimeout(() => {
+                // 更新内容
+                displayTitle.textContent = data.title;
+                displayText.textContent = data.text;
+                
+                // 更新卡片激活状态
+                stepCards.forEach(card => card.classList.remove('active'));
+                const activeCard = document.getElementById(`step-${stepIndex}`);
+                if (activeCard) {
+                    activeCard.classList.add('active');
+                }
+                
+                // 淡入效果
+                displayPanel.style.opacity = 1;
+            }, 300); // 匹配CSS过渡时间
+        }
+
+        // ---------------------------------
+        // 3. 动态排名图表
+        // ---------------------------------
+        const rankingData = [
+            { rank: 1, code: 'p6', name: 'BYD Seal (比亚迪 海豹)', score: 100 },
+            { rank: 2, code: 'p5', name: 'BYD Han (比亚迪 汉)', score: 95 },
+            { rank: 3, code: 'p2', name: 'XPeng P7 (小鹏 P7)', score: 90 },
+            { rank: 4, code: 'p4', name: 'Zeekr 007 (极氪 007)', score: 82 },
+            { rank: 5, code: 'p9', name: 'NIO ET5 (蔚来 ET5)', score: 78 },
+            { rank: 6, code: 'p3', name: 'IM L6 (智己 L6)', score: 70 },
+            { rank: 7, code: 'p1', name: 'Xiaomi SU7 (小米 SU7)', score: 65 },
+            { rank: 8, code: 'p8', name: 'Tesla Model 3 (特斯拉 Model 3)', score: 58 },
+            { rank: 9, code: 'p7', name: 'Deepal SL03 (深蓝 SL03)', score: 55 }
+        ];
+
+        const chartContainer = document.getElementById('ranking-chart');
+
+        function initRankingChart() {
+            if (!chartContainer) return;
+            chartContainer.innerHTML = ''; // 清空容器
+            rankingData.forEach((item, index) => {
+                const barId = `bar-${item.code}`;
+                const barElement = document.createElement('div');
+                barElement.className = 'ranking-bar-container rounded-lg p-3 grid grid-cols-12 gap-2 items-center';
+                
+                barElement.innerHTML = `
+                    <span class="col-span-1 text-lg font-bold text-cyan-400 text-right">${item.rank}.</span>
+                    <span class="col-span-5 text-sm md:text-base font-medium text-white">${item.name}</span>
+                    <div class="col-span-6 h-5 bg-gray-700 rounded-md overflow-hidden">
+                        <div id="${barId}" class="ranking-bar" style="width: 0%;"></div>
+                    </div>
+                `;
+                chartContainer.appendChild(barElement);
+
+                // 错开动画启动时间
+                setTimeout(() => {
+                    const bar = document.getElementById(barId);
+                    if(bar) {
+                        bar.style.width = `${item.score}%`;
+                    }
+                }, index * 100 + 100); // 延迟启动动画
+            });
+        }
+        
+        // ---------------------------------
+        // 4. 页面加载后初始化
+        // ---------------------------------
+        document.addEventListener('DOMContentLoaded', () => {
+            // 确保 lucide 对象存在后再调用
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons(); // 初始化图标
+            } else {
+                console.error('Lucide 图标库未加载');
+            }
+            
+            showStep(1);          // 显示第一个步骤
+            initRankingChart();   // 初始化排名图表
+        });
+        
+    </script>
+</body>
+</html>
